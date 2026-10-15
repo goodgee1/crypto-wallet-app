@@ -1,17 +1,16 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const otplib = require('otplib');
-const authenticator = otplib.authenticator || otplib;
 const crypto = require('crypto');
+
+const { verifyTOTP, generateSecret, buildOtpAuthURI } = require('../utils/totp');
+
 const User = require('../models/User');
 const Referral = require('../models/Referral');
 const { notify } = require('../middleware/notify');
 const { auth } = require('../middleware/auth');
-const router = express.Router();
 
-// 30-second window, allow 1 step of clock drift (30s before/after)
-authenticator.options = { window: 1 };
+const router = express.Router();
 
 const APP_NAME = 'NovaWallet';
 
@@ -24,7 +23,6 @@ const sign = (user) => jwt.sign(
 function genRecoveryCodes(count = 8) {
   const codes = [];
   for (let i = 0; i < count; i++) {
-    // 10-char hex chunks, formatted as XXXX-XXXX
     const raw = crypto.randomBytes(5).toString('hex').toUpperCase();
     codes.push(`${raw.slice(0, 4)}-${raw.slice(4, 8)}`);
   }
@@ -55,7 +53,9 @@ router.post('/register', async (req, res) => {
     }
 
     const user = await User.create({
-      username, email, password: hashed,
+      username,
+      email,
+      password: hashed,
       referralCode: 'NVW' + Math.random().toString(36).slice(2, 8).toUpperCase(),
       acceptedTermsAt: new Date(),
       referredBy: referrer?._id || null
@@ -67,16 +67,25 @@ router.post('/register', async (req, res) => {
         referee: user._id,
         bonusPaid: false
       });
-      await notify(referrer._id, 'referral',
+      await notify(
+        referrer._id,
+        'referral',
         'New referral!',
-        `${username} signed up using your code. You'll earn 5 USDT when they make their first deposit.`);
+        `${username} signed up using your code. You'll earn 5 USDT when they make their first deposit.`
+      );
     }
 
-    await notify(user._id, 'system',
+    await notify(
+      user._id,
+      'system',
       'Welcome to NovaWallet',
-      'Complete KYC to unlock higher withdrawal limits.');
+      'Complete KYC to unlock higher withdrawal limits.'
+    );
 
-    res.json({ token: sign(user), user: { id: user._id, username, email, role: user.role } });
+    res.json({
+      token: sign(user),
+      user: { id: user._id, username, email, role: user.role }
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -105,8 +114,8 @@ router.post('/login', async (req, res) => {
       }
 
       const cleanCode = String(code).replace(/\s/g, '');
-      const isTotp = authenticator.check(cleanCode, user.twoFASecret);
-      const isRecovery = user.twoFARecoveryCodes.includes(cleanCode.toUpperCase());
+      const isTotp = verifyTOTP(cleanCode, user.twoFASecret);
+      const isRecovery = (user.twoFARecoveryCodes || []).includes(cleanCode.toUpperCase());
 
       if (!isTotp && !isRecovery) {
         return res.status(401).json({
@@ -115,13 +124,17 @@ router.post('/login', async (req, res) => {
         });
       }
 
-      // If a recovery code was used, consume it
       if (isRecovery) {
-        user.twoFARecoveryCodes = user.twoFARecoveryCodes.filter(c => c !== cleanCode.toUpperCase());
+        user.twoFARecoveryCodes = user.twoFARecoveryCodes.filter(
+          c => c !== cleanCode.toUpperCase()
+        );
         await user.save();
-        await notify(user._id, 'security',
+        await notify(
+          user._id,
+          'security',
           'Recovery code used',
-          `A recovery code was used to log in. ${user.twoFARecoveryCodes.length} codes remaining.`);
+          `A recovery code was used to log in. ${user.twoFARecoveryCodes.length} codes remaining.`
+        );
       }
     }
 
@@ -137,7 +150,12 @@ router.post('/login', async (req, res) => {
 
     res.json({
       token: sign(user),
-      user: { id: user._id, username: user.username, email: user.email, role: user.role }
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role
+      }
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -153,7 +171,6 @@ router.get('/me', auth, async (req, res) => {
 
 /* ============================================================
    2FA SETUP — STEP 1: Generate secret + QR URI
-   Returns otpauth:// URL for the frontend to render as QR
    ============================================================ */
 router.post('/2fa/setup', auth, async (req, res) => {
   try {
@@ -162,17 +179,19 @@ router.post('/2fa/setup', auth, async (req, res) => {
       return res.status(400).json({ error: '2FA is already enabled' });
     }
 
-    // Generate a fresh secret
-    const secret = authenticator.generateSecret(20); // 20 bytes = 32 base32 chars
-    const otpauth = authenticator.keyuri(user.email, APP_NAME, secret);
+    const secret = generateSecret(20);
+    const otpauth = buildOtpAuthURI({
+      issuer: APP_NAME,
+      account: user.email,
+      secret
+    });
 
-    // Store as pending until user verifies a code
     user.twoFAPendingSecret = secret;
     await user.save();
 
     res.json({
-      secret,                    // shown as text fallback if QR won't scan
-      otpauth,                   // for QR rendering
+      secret,
+      otpauth,
       issuer: APP_NAME,
       account: user.email
     });
@@ -195,19 +214,23 @@ router.post('/2fa/enable', auth, async (req, res) => {
       return res.status(400).json({ error: 'No setup in progress. Start over.' });
 
     const cleanCode = String(code).replace(/\s/g, '');
-    const valid = authenticator.check(cleanCode, user.twoFAPendingSecret);
-    if (!valid) return res.status(400).json({ error: 'Invalid code — check your authenticator app' });
+    const valid = verifyTOTP(cleanCode, user.twoFAPendingSecret);
+    if (!valid) {
+      return res.status(400).json({ error: 'Invalid code — check your authenticator app' });
+    }
 
-    // Promote pending secret to active
     user.twoFA = true;
     user.twoFASecret = user.twoFAPendingSecret;
     user.twoFAPendingSecret = '';
     user.twoFARecoveryCodes = genRecoveryCodes(8);
     await user.save();
 
-    await notify(user._id, 'security',
+    await notify(
+      user._id,
+      'security',
       '2FA enabled',
-      'Two-factor authentication is now active on your account.');
+      'Two-factor authentication is now active on your account.'
+    );
 
     res.json({
       ok: true,
@@ -219,7 +242,7 @@ router.post('/2fa/enable', auth, async (req, res) => {
 });
 
 /* ============================================================
-   2FA — VERIFY CODE (used for withdrawals)
+   2FA — VERIFY CODE (used for withdrawals & sensitive actions)
    ============================================================ */
 router.post('/2fa/verify', auth, async (req, res) => {
   try {
@@ -230,14 +253,16 @@ router.post('/2fa/verify', auth, async (req, res) => {
     if (!user.twoFA) return res.status(400).json({ error: '2FA is not enabled' });
 
     const cleanCode = String(code).replace(/\s/g, '');
-    const isTotp = authenticator.check(cleanCode, user.twoFASecret);
-    const isRecovery = user.twoFARecoveryCodes.includes(cleanCode.toUpperCase());
+    const isTotp = verifyTOTP(cleanCode, user.twoFASecret);
+    const isRecovery = (user.twoFARecoveryCodes || []).includes(cleanCode.toUpperCase());
 
     if (!isTotp && !isRecovery)
       return res.status(400).json({ error: 'Invalid or expired code' });
 
     if (isRecovery) {
-      user.twoFARecoveryCodes = user.twoFARecoveryCodes.filter(c => c !== cleanCode.toUpperCase());
+      user.twoFARecoveryCodes = user.twoFARecoveryCodes.filter(
+        c => c !== cleanCode.toUpperCase()
+      );
       await user.save();
     }
 
@@ -263,17 +288,21 @@ router.post('/2fa/disable', auth, async (req, res) => {
     if (!pwdOk) return res.status(401).json({ error: 'Incorrect password' });
 
     const cleanCode = String(code).replace(/\s/g, '');
-    const valid = authenticator.check(cleanCode, user.twoFASecret);
+    const valid = verifyTOTP(cleanCode, user.twoFASecret);
     if (!valid) return res.status(400).json({ error: 'Invalid 2FA code' });
 
     user.twoFA = false;
     user.twoFASecret = '';
+    user.twoFAPendingSecret = '';
     user.twoFARecoveryCodes = [];
     await user.save();
 
-    await notify(user._id, 'security',
+    await notify(
+      user._id,
+      'security',
       '2FA disabled',
-      'Two-factor authentication has been removed from your account.');
+      'Two-factor authentication has been removed from your account.'
+    );
 
     res.json({ ok: true });
   } catch (e) {
@@ -292,7 +321,7 @@ router.post('/2fa/recovery-codes', auth, async (req, res) => {
     const user = await User.findById(req.user._id);
     if (!user.twoFA) return res.status(400).json({ error: '2FA is not enabled' });
 
-    const valid = authenticator.check(String(code).replace(/\s/g, ''), user.twoFASecret);
+    const valid = verifyTOTP(String(code).replace(/\s/g, ''), user.twoFASecret);
     if (!valid) return res.status(400).json({ error: 'Invalid 2FA code' });
 
     user.twoFARecoveryCodes = genRecoveryCodes(8);
