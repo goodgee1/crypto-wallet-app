@@ -703,3 +703,67 @@ html[data-theme="light"] .tx-detail-row { background: rgba(255,255,255,.5); }
   transition: width .5s ease;
 }
 .conf-label { font-size: 11px; color: var(--text-mute); white-space: nowrap; }
+
+/* ============ MODAL HEAD + CLOSE ============ */
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-head h3 {
+  font-size: 18px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin: 0;
+}
+.modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: transparent !important;
+  color: var(--text-dim) !important;
+  box-shadow: none !important;
+  font-size: 22px;
+  line-height: 1;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  transition: all .15s;
+}
+.modal-close:hover {
+  background: rgba(148,163,184,.1) !important;
+  color: var(--text) !important;
+  transform: none !important;
+}
+
+/* Input focus ring for code inputs */
+#disable-code,
+#regen-code,
+#twofa-code-input {
+  transition: all .2s;
+}
+#disable-code:focus,
+#regen-code:focus,
+#twofa-code-input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 4px rgba(74,222,128,.12) !important;
+}
+
+/* Disable modal danger styling */
+#disable-modal .modal-inner {
+  border: 1px solid rgba(239,68,68,.25);
+}
+
+/* Smooth modal entrance */
+.modal-inner {
+  animation: modalIn .28s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
