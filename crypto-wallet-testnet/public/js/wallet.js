@@ -226,32 +226,80 @@ window.deposit = async function () {
   }
 };
 
-/* ---------------- WITHDRAW ---------------- */
+/* ============================================================
+   WITHDRAW — Step 1: validate & open the confirm modal
+   ============================================================ */
 window.withdraw = async function () {
   const btn = document.getElementById('btn-withdraw');
   const amount = Number(document.getElementById('w-amt')?.value);
   const address = (document.getElementById('w-addr')?.value || '').trim();
 
+  // validation
   if (!amount || amount <= 0) return toast('Enter a valid amount', 'warn');
   if (!address || address.length < 10) return toast('Enter a valid destination address', 'warn');
   if (amount < selectedNet.minWithdraw) return toast(`Minimum withdrawal is ${selectedNet.minWithdraw} USDT`, 'warn');
 
+  // check if 2FA is on
+  let me = null;
+  try {
+    me = await api('/api/auth/me').then(r => r.user);
+  } catch {}
+
+  if (!me) return toast('Could not verify your account', 'error');
+
+  if (me.twoFA) {
+    // Open the 2FA modal
+    document.getElementById('wd-summary-amount').textContent = `${amount} USDT`;
+    document.getElementById('wd-summary-network').textContent = selectedNet.id;
+    document.getElementById('wd-summary-address').textContent = address;
+    document.getElementById('withdraw-2fa-code').value = '';
+    document.getElementById('withdraw-2fa-msg').textContent = '';
+    openModal('withdraw-2fa-modal');
+    setTimeout(() => document.getElementById('withdraw-2fa-code').focus(), 150);
+  } else {
+    // No 2FA — submit directly
+    await submitWithdrawal({ amount, address, code: undefined });
+  }
+};
+
+/* ============================================================
+   WITHDRAW — Step 2a: user confirmed the modal
+   ============================================================ */
+window.confirmWithdrawal = async function () {
+  const code = document.getElementById('withdraw-2fa-code').value.trim();
+  const msg = document.getElementById('withdraw-2fa-msg');
+
+  if (!code) {
+    msg.className = 'error';
+    msg.textContent = 'Enter the 6-digit code';
+    return;
+  }
+
+  const amount = Number(document.getElementById('w-amt')?.value);
+  const address = (document.getElementById('w-addr')?.value || '').trim();
+
+  msg.className = '';
+  msg.textContent = 'Verifying…';
+
+  await submitWithdrawal({ amount, address, code, msgEl: msg });
+};
+
+/* ============================================================
+   WITHDRAW — Step 2b: user cancelled the modal
+   ============================================================ */
+window.cancelWithdrawal = function () {
+  closeModal('withdraw-2fa-modal');
+};
+
+/* ============================================================
+   WITHDRAW — actual submission (used by both paths)
+   ============================================================ */
+async function submitWithdrawal({ amount, address, code, msgEl }) {
+  const btn = document.getElementById('btn-withdraw');
+  const originalText = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
 
   try {
-    // 2FA check
-     let code;
-    try {
-      const me = await api('/api/auth/me').then(r => r.user);
-      if (me.twoFA) {
-        code = prompt('Enter the current 6-digit code from your authenticator app');
-        if (!code) {
-          if (btn) { btn.disabled = false; btn.textContent = 'Request Withdrawal'; }
-          return;
-        }
-      }
-    } catch {}
-
     await api('/api/wallet/withdraw', {
       method: 'POST',
       body: JSON.stringify({
@@ -263,17 +311,24 @@ window.withdraw = async function () {
       })
     });
 
+    // success
+    closeModal('withdraw-2fa-modal');
     toast('Withdrawal submitted — processing', 'success');
     document.getElementById('w-amt').value = '';
     document.getElementById('w-addr').value = '';
     loadTxs();
     loadLimits();
   } catch (e) {
-    toast(e.message, 'error');
+    if (msgEl) {
+      msgEl.className = 'error';
+      msgEl.textContent = e.message;
+    } else {
+      toast(e.message, 'error');
+    }
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Request Withdrawal'; }
+    if (btn) { btn.disabled = false; btn.textContent = originalText || 'Request Withdrawal'; }
   }
-};
+}
 
 /* ---------------- TRANSACTION HISTORY ---------------- */
 async function loadTxs() {
