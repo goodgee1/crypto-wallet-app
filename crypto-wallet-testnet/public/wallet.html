@@ -137,6 +137,53 @@
     </div>
   </div>
 
+   <!-- ================= WITHDRAWAL 2FA MODAL ================= -->
+  <div class="modal" id="withdraw-2fa-modal">
+    <div class="modal-inner glass" style="max-width: 460px;">
+      <div class="modal-head">
+        <h3>Confirm Withdrawal</h3>
+        <button class="modal-close" onclick="cancelWithdrawal()">×</button>
+      </div>
+
+      <div style="
+        padding: 12px 14px;
+        border-radius: 10px;
+        background: rgba(148,163,184,.08);
+        border: 1px solid var(--border);
+        margin-bottom: 18px;
+        font-size: 13px;
+      ">
+        <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
+          <span class="tag">Amount</span>
+          <b id="wd-summary-amount" style="color: var(--text);">0 USDT</b>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
+          <span class="tag">Network</span>
+          <b id="wd-summary-network" style="color: var(--text);">TRC20</b>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span class="tag">To</span>
+          <b id="wd-summary-address" style="color: var(--text); font-family: monospace; font-size: 11px; word-break: break-all; text-align: right; max-width: 220px;">—</b>
+        </div>
+      </div>
+
+      <label>Authenticator code</label>
+      <input id="withdraw-2fa-code" maxlength="7" placeholder="123 456" autocomplete="one-time-code"
+        style="text-align:center; font-family: monospace; font-size: 22px; letter-spacing: 8px; padding: 14px;" />
+
+      <p class="tag" style="margin-top: -6px; margin-bottom: 12px;">
+        Open Google Authenticator, Authy, or 1Password and enter the current 6-digit code.
+      </p>
+
+      <div id="withdraw-2fa-msg" style="min-height: 18px; margin-bottom: 10px;"></div>
+
+      <div style="display:flex; gap: 10px;">
+        <button class="secondary" style="flex:1;" onclick="cancelWithdrawal()">Cancel</button>
+        <button style="flex:1;" onclick="confirmWithdrawal()">Confirm Withdrawal</button>
+      </div>
+    </div>
+  </div> 
+  
   <script src="/js/ui.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/notifications.js"></script>
