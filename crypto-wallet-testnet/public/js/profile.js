@@ -184,35 +184,80 @@ window.changePwd = async () => {
   } catch (e) { toast(e.message, 'error'); }
 };
 
-/* ============ 2FA SETUP — STEP 1: show QR ============ */
+/* ============================================================
+   MODAL HELPERS
+   ============================================================ */
+function openModal(id) {
+  const m = document.getElementById(id);
+  if (m) m.classList.add('open');
+}
+
+function closeModal(id) {
+  const m = document.getElementById(id);
+  if (m) m.classList.remove('open');
+}
+
+// Close modal when clicking the dark backdrop (not the inner card)
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('modal') && e.target.classList.contains('open')) {
+    e.target.classList.remove('open');
+  }
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
+  }
+});
+
+/* ============================================================
+   2FA SETUP — STEP 1: Show QR
+   ============================================================ */
 async function start2FASetup() {
   try {
     const setup = await api('/api/auth/2fa/setup', { method: 'POST' });
-    const modal = document.getElementById('twofa-modal');
     const body = document.getElementById('twofa-modal-body');
+    document.getElementById('twofa-modal-title').textContent = 'Set up Two-Factor Authentication';
 
     body.innerHTML = `
-      <p class="tag" style="margin-bottom: 14px;">
-        Scan this QR code with your authenticator app, then enter the 6-digit code it shows.
+      <p class="tag" style="margin-bottom: 16px; line-height: 1.6;">
+        Scan this QR code with <b>Google Authenticator</b>, <b>Authy</b>, or <b>1Password</b>.
+        Then enter the 6-digit code your app shows.
       </p>
 
-      <div id="qr-2fa" style="display:flex; justify-content:center; padding: 12px; background:#fff; border-radius: 12px; width: fit-content; margin: 0 auto 14px;"></div>
+      <div style="display:flex; justify-content:center; margin-bottom: 16px;">
+        <div id="qr-2fa" style="padding: 14px; background:#fff; border-radius: 14px;"></div>
+      </div>
 
-      <details style="margin-bottom: 14px;">
-        <summary class="tag" style="cursor:pointer;">Can't scan? Enter the setup key manually</summary>
-        <div style="margin-top: 8px; padding: 10px 12px; background: rgba(148,163,184,.08); border-radius: 8px; font-family: monospace; font-size: 13px; word-break: break-all;">
-          ${setup.secret}
-        </div>
+      <details style="margin-bottom: 18px;">
+        <summary class="tag" style="cursor:pointer; padding: 8px 0;">
+          Can't scan? Enter the setup key manually
+        </summary>
+        <div style="
+          margin-top: 8px;
+          padding: 12px 14px;
+          background: rgba(148,163,184,.08);
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 12px;
+          word-break: break-all;
+          color: var(--text-dim);
+          letter-spacing: 1px;
+        ">${setup.secret}</div>
       </details>
 
-      <label>Enter the 6-digit code from your app</label>
-      <input id="twofa-code-input" maxlength="7" placeholder="123 456"
-        style="text-align:center; font-family: monospace; font-size: 20px; letter-spacing: 6px;" />
+      <label>Enter the 6-digit code</label>
+      <input id="twofa-code-input" maxlength="7" placeholder="123 456" autocomplete="one-time-code"
+        style="text-align:center; font-family: monospace; font-size: 22px; letter-spacing: 8px; padding: 14px;" />
+
+      <div id="twofa-setup-msg" style="min-height: 18px; margin-bottom: 10px;"></div>
 
       <button style="width:100%" onclick="confirmEnable2FA()">Verify & Enable</button>
     `;
 
-    modal.classList.add('open');
+    openModal('twofa-modal');
 
     // Render QR
     const qrHost = document.getElementById('qr-2fa');
@@ -235,9 +280,23 @@ async function start2FASetup() {
   }
 }
 
+/* ============================================================
+   2FA SETUP — STEP 2: Confirm code
+   ============================================================ */
 window.confirmEnable2FA = async () => {
-  const code = document.getElementById('twofa-code-input').value.trim();
-  if (!code) return toast('Enter the code', 'warn');
+  const input = document.getElementById('twofa-code-input');
+  const msg = document.getElementById('twofa-setup-msg');
+  const code = input.value.trim();
+
+  if (!code) {
+    msg.className = 'error';
+    msg.textContent = 'Please enter the code';
+    input.focus();
+    return;
+  }
+
+  msg.className = '';
+  msg.textContent = 'Verifying…';
 
   try {
     const r = await api('/api/auth/2fa/enable', {
@@ -245,31 +304,59 @@ window.confirmEnable2FA = async () => {
       body: JSON.stringify({ code })
     });
 
-    // Show recovery codes — critical step
-    const modalBody = document.getElementById('twofa-modal-body');
-    modalBody.innerHTML = `
-      <div class="broadcast" style="--broadcast-icon: none;">✅ 2FA enabled successfully</div>
-      <p class="tag" style="margin: 14px 0;">
-        <b>Save these recovery codes.</b> Each one can be used once to log in if you lose access
-        to your authenticator app. Store them somewhere safe.
-      </p>
+    // Show recovery codes
+    document.getElementById('twofa-modal-title').textContent = 'Save your recovery codes';
+    document.getElementById('twofa-modal-body').innerHTML = `
       <div style="
-        display:grid; grid-template-columns: 1fr 1fr; gap: 8px;
-        padding: 14px; background: rgba(6,9,21,.5); border-radius: 10px;
-        border: 1px solid var(--border); font-family: monospace; font-size: 13px;
-        margin-bottom: 14px;
+        padding: 14px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, rgba(74,222,128,.14), rgba(34,211,238,.08));
+        border: 1px solid rgba(74,222,128,.3);
+        text-align: center;
+        font-weight: 600;
+        margin-bottom: 18px;
       ">
-        ${r.recoveryCodes.map(c => `<div>${c}</div>`).join('')}
+        ✅ 2FA enabled successfully
       </div>
-      <button class="secondary" style="width:100%; margin-bottom: 8px;"
-        onclick="copyRecoveryCodes(${JSON.stringify(r.recoveryCodes).replace(/"/g, '&quot;')})">
-        Copy all codes
-      </button>
-      <button style="width:100%"
-        onclick="document.getElementById('twofa-modal').classList.remove('open')">
-        I've saved my codes
-      </button>`;
 
+      <p class="tag" style="margin-bottom: 14px; line-height: 1.6;">
+        <b style="color: var(--text);">Save these recovery codes.</b>
+        Each can be used once to log in if you lose access to your authenticator app.
+        Store them somewhere safe — you won't see them again.
+      </p>
+
+      <div style="
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding: 16px;
+        background: rgba(6,9,21,.5);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 13px;
+        margin-bottom: 14px;
+        letter-spacing: 1px;
+      ">
+        ${r.recoveryCodes.map(c => `<div style="text-align:center;">${c}</div>`).join('')}
+      </div>
+
+      <button class="secondary" style="width:100%; margin-bottom: 10px;"
+        onclick='copyRecoveryCodes(${JSON.stringify(r.recoveryCodes)})'>
+        📋 Copy all codes
+      </button>
+
+      <button class="secondary" style="width:100%; margin-bottom: 10px;"
+        onclick='downloadRecoveryCodes(${JSON.stringify(r.recoveryCodes)})'>
+        💾 Download as .txt
+      </button>
+
+      <button style="width:100%" onclick="finish2FASetup()">
+        I've saved my codes
+      </button>
+    `;
+
+    // update toggle & local user
     document.getElementById('twofa').classList.add('on');
     const stored = JSON.parse(localStorage.getItem('user') || '{}');
     stored.twoFA = true;
@@ -277,8 +364,14 @@ window.confirmEnable2FA = async () => {
 
     toast('2FA enabled', 'success');
   } catch (e) {
-    toast(e.message, 'error');
+    msg.className = 'error';
+    msg.textContent = e.message;
   }
+};
+
+window.finish2FASetup = () => {
+  closeModal('twofa-modal');
+  location.reload();
 };
 
 window.copyRecoveryCodes = (codes) => {
@@ -286,46 +379,184 @@ window.copyRecoveryCodes = (codes) => {
   toast('Recovery codes copied', 'success', 1500);
 };
 
-/* ============ 2FA DISABLE ============ */
-async function disable2FA() {
-  const password = prompt('Enter your account password');
-  if (!password) return;
-  const code = prompt('Enter the current 6-digit code from your authenticator app');
-  if (!code) return;
+window.downloadRecoveryCodes = (codes) => {
+  const text = `NovaWallet — 2FA Recovery Codes\nGenerated: ${new Date().toLocaleString()}\n\n` +
+    codes.join('\n') +
+    `\n\nEach code can be used once. Keep this file offline and secure.`;
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'novawallet-recovery-codes.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Recovery codes downloaded', 'success', 1500);
+};
+
+/* ============================================================
+   2FA DISABLE — modal flow
+   ============================================================ */
+function disable2FA() {
+  // reset form
+  document.getElementById('disable-pwd').value = '';
+  document.getElementById('disable-code').value = '';
+  document.getElementById('disable-msg').textContent = '';
+  openModal('disable-modal');
+  setTimeout(() => document.getElementById('disable-pwd').focus(), 150);
+}
+
+window.confirmDisable2FA = async () => {
+  const password = document.getElementById('disable-pwd').value;
+  const code = document.getElementById('disable-code').value.trim();
+  const msg = document.getElementById('disable-msg');
+  const btn = document.querySelector('#disable-modal button.danger');
+
+  if (!password) {
+    msg.className = 'error';
+    msg.textContent = 'Enter your password';
+    return;
+  }
+  if (!code) {
+    msg.className = 'error';
+    msg.textContent = 'Enter the 6-digit code';
+    return;
+  }
+
+  msg.className = '';
+  msg.textContent = 'Verifying…';
+  btn.disabled = true;
+  btn.textContent = 'Disabling…';
 
   try {
     await api('/api/auth/2fa/disable', {
       method: 'POST',
       body: JSON.stringify({ password, code })
     });
+
+    // success
     document.getElementById('twofa').classList.remove('on');
-    toast('2FA disabled', 'success');
     const stored = JSON.parse(localStorage.getItem('user') || '{}');
     stored.twoFA = false;
     localStorage.setItem('user', JSON.stringify(stored));
-  } catch (e) {
-    toast(e.message, 'error');
-  }
-}
 
-/* ============ Regenerate recovery codes ============ */
+    closeModal('disable-modal');
+    toast('2FA has been disabled', 'success');
+    setTimeout(() => location.reload(), 700);
+  } catch (e) {
+    msg.className = 'error';
+    msg.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Disable 2FA';
+  }
+};
+
+/* ============================================================
+   REGENERATE RECOVERY CODES — modal prompt
+   ============================================================ */
 function renderRecoverySection() {
   const kycActions = document.getElementById('kyc-actions');
   if (!kycActions) return;
+  if (document.getElementById('regen-2fa-btn')) return;
+
   const btn = document.createElement('button');
+  btn.id = 'regen-2fa-btn';
   btn.className = 'secondary sm';
   btn.textContent = 'Regenerate recovery codes';
   btn.style.marginTop = '12px';
-  btn.onclick = async () => {
-    const code = prompt('Enter the current 6-digit code from your authenticator app');
-    if (!code) return;
-    try {
-      const r = await api('/api/auth/2fa/recovery-codes', {
-        method: 'POST',
-        body: JSON.stringify({ code })
-      });
-      alert('New recovery codes:\n\n' + r.recoveryCodes.join('\n') + '\n\nSave them now.');
-    } catch (e) { toast(e.message, 'error'); }
-  };
+  btn.onclick = openRegenerateModal;
   kycActions.parentNode.insertBefore(btn, kycActions.nextSibling);
 }
+
+function openRegenerateModal() {
+  // Reuse the disable modal structure by injecting fresh content
+  const modal = document.getElementById('disable-modal');
+  const inner = modal.querySelector('.modal-inner');
+
+  inner.innerHTML = `
+    <div class="modal-head">
+      <h3>Regenerate recovery codes</h3>
+      <button class="modal-close" onclick="closeModal('disable-modal')">×</button>
+    </div>
+
+    <p class="tag" style="margin-bottom: 14px; line-height: 1.6;">
+      This will invalidate your old codes and generate 8 new ones.
+      Enter the current code from your authenticator app to continue.
+    </p>
+
+    <label>Authenticator code</label>
+    <input id="regen-code" maxlength="7" placeholder="123 456"
+      style="text-align:center; font-family: monospace; font-size: 20px; letter-spacing: 6px;" />
+
+    <div id="regen-msg" style="min-height: 18px; margin-bottom: 10px;"></div>
+
+    <button style="width:100%" onclick="confirmRegenerate()">Generate new codes</button>
+  `;
+
+  openModal('disable-modal');
+  setTimeout(() => document.getElementById('regen-code').focus(), 150);
+}
+
+window.confirmRegenerate = async () => {
+  const code = document.getElementById('regen-code').value.trim();
+  const msg = document.getElementById('regen-msg');
+  if (!code) { msg.className = 'error'; msg.textContent = 'Enter the code'; return; }
+
+  msg.className = '';
+  msg.textContent = 'Verifying…';
+
+  try {
+    const r = await api('/api/auth/2fa/recovery-codes', {
+      method: 'POST',
+      body: JSON.stringify({ code })
+    });
+
+    // Replace modal body with new codes
+    const inner = document.querySelector('#disable-modal .modal-inner');
+    inner.innerHTML = `
+      <div class="modal-head">
+        <h3>New recovery codes</h3>
+        <button class="modal-close" onclick="closeModal('disable-modal'); location.reload();">×</button>
+      </div>
+
+      <div style="
+        padding: 12px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, rgba(74,222,128,.14), rgba(34,211,238,.08));
+        border: 1px solid rgba(74,222,128,.3);
+        text-align: center;
+        font-weight: 600;
+        margin-bottom: 16px;
+      ">
+        ✅ New codes generated — save them now
+      </div>
+
+      <div style="
+        display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+        padding: 16px; background: rgba(6,9,21,.5);
+        border: 1px solid var(--border); border-radius: 12px;
+        font-family: monospace; font-size: 13px; margin-bottom: 14px;
+        letter-spacing: 1px;
+      ">
+        ${r.recoveryCodes.map(c => `<div style="text-align:center;">${c}</div>`).join('')}
+      </div>
+
+      <button class="secondary" style="width:100%; margin-bottom: 10px;"
+        onclick='copyRecoveryCodes(${JSON.stringify(r.recoveryCodes)})'>
+        📋 Copy all codes
+      </button>
+
+      <button class="secondary" style="width:100%; margin-bottom: 10px;"
+        onclick='downloadRecoveryCodes(${JSON.stringify(r.recoveryCodes)})'>
+        💾 Download as .txt
+      </button>
+
+      <button style="width:100%" onclick="closeModal('disable-modal'); location.reload();">
+        Done
+      </button>
+    `;
+  } catch (e) {
+    msg.className = 'error';
+    msg.textContent = e.message;
+  }
+};
