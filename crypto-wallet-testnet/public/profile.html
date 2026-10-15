@@ -115,15 +115,54 @@
   <script src="/js/notifications.js"></script>
   <script src="/js/profile.js"></script>
 
+    <!-- 2FA SETUP MODAL (QR + verify) -->
   <div class="modal" id="twofa-modal">
-  <div class="modal-inner glass" style="max-width: 500px;">
-    <h3 style="margin-bottom: 12px;">Two-Factor Authentication</h3>
-    <div id="twofa-modal-body"></div>
-    <button class="secondary" style="width:100%; margin-top:12px;"
-      onclick="document.getElementById('twofa-modal').classList.remove('open')">
-      Close
-    </button>
+    <div class="modal-inner glass" style="max-width: 520px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-head">
+        <h3 id="twofa-modal-title">Two-Factor Authentication</h3>
+        <button class="modal-close" onclick="closeModal('twofa-modal')">×</button>
+      </div>
+      <div id="twofa-modal-body"></div>
+      <button class="secondary" style="width:100%; margin-top:12px;"
+        onclick="closeModal('twofa-modal')">
+        Close
+      </button>
+    </div>
   </div>
-</div>
+
+  <!-- 2FA DISABLE MODAL (password + code) -->
+  <div class="modal" id="disable-modal">
+    <div class="modal-inner glass" style="max-width: 460px;">
+      <div class="modal-head">
+        <h3>Disable Two-Factor Authentication</h3>
+        <button class="modal-close" onclick="closeModal('disable-modal')">×</button>
+      </div>
+
+      <div style="
+        padding: 12px 14px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, rgba(239,68,68,.12), rgba(220,38,38,.08));
+        border: 1px solid rgba(239,68,68,.3);
+        margin-bottom: 18px;
+        font-size: 13px;
+        line-height: 1.5;
+      ">
+        ⚠️ <b>This will weaken your account security.</b> Confirm your password and a current code from your authenticator app.
+      </div>
+
+      <label>Account password</label>
+      <input id="disable-pwd" type="password" placeholder="Enter your password" autocomplete="current-password" />
+
+      <label>Authenticator code</label>
+      <input id="disable-code" maxlength="7" placeholder="123 456"
+        style="text-align:center; font-family: monospace; font-size: 20px; letter-spacing: 6px;" />
+
+      <div id="disable-msg" style="min-height: 18px; margin-bottom: 10px;"></div>
+
+      <button class="danger" style="width:100%" onclick="confirmDisable2FA()">
+        Disable 2FA
+      </button>
+    </div>
+  </div>
 </body>
 </html>
