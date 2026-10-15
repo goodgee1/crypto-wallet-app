@@ -5,6 +5,19 @@
 
 const user = requireAuth();
 
+/* ============================================================
+   MODAL HELPERS
+   ============================================================ */
+function openModal(id) {
+  const m = document.getElementById(id);
+  if (m) m.classList.add('open');
+}
+
+function closeModal(id) {
+  const m = document.getElementById(id);
+  if (m) m.classList.remove('open');
+}
+
 // Hardcoded fallback so page always renders even if /api/networks fails
 const FALLBACK_NETWORKS = [
   { id: 'TRC20', name: 'Tron (TRC20)',    symbol: 'USDT', minDeposit: 1,  minWithdraw: 10, fee: 1,   confirmations: 19, color: '#ef4444' },
@@ -406,3 +419,17 @@ window.openTxDetail = async function (txId) {
     body.innerHTML = `<div class="empty">${e.message}</div>`;
   }
 };
+
+// Close modal on backdrop click
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('modal') && e.target.classList.contains('open')) {
+    e.target.classList.remove('open');
+  }
+});
+
+// Close modal on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
+  }
+});
