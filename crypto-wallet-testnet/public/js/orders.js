@@ -128,4 +128,59 @@ async function loadMyOrders() {
         <thead><tr><th>Time</th><th>Pair</th><th>Side</th><th>Price</th><th>Amount</th><th>Filled</th><th>Status</th><th></th></tr></thead>
         <tbody>${orders.map(o => `
           <tr>
-            <td>${new Date(o.createdAt
+            <td>${new Date(o.createdAt).toLocaleTimeString()}</td>
+            <td>${o.pair}</td>
+            <td style="color: ${o.side === 'buy' ? '#4ade80' : '#fca5a5'}; text-transform: uppercase; font-weight:600;">${o.side}</td>
+            <td>${o.price.toFixed(2)}</td>
+            <td>${o.amount.toFixed(4)}</td>
+            <td>${o.filled.toFixed(4)}</td>
+            <td><span class="badge ${
+              o.status === 'filled' ? 'completed'
+              : o.status === 'cancelled' ? 'rejected'
+              : 'pending'
+            }">${o.status}</span></td>
+            <td>${['open','partial'].includes(o.status)
+              ? `<button class="danger sm" onclick="cancelOrder('${o._id}')">Cancel</button>`
+              : ''}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>`;
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+window.placeOrder = async () => {
+  const price = Number(document.getElementById('order-price').value);
+  const amount = Number(document.getElementById('order-amount').value);
+  if (!price || price <= 0) return toast('Enter a valid price', 'warn');
+  if (!amount || amount <= 0) return toast('Enter a valid amount', 'warn');
+
+  const btn = document.getElementById('btn-submit');
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Placing…';
+
+  try {
+    await api('/api/orders', {
+      method: 'POST',
+      body: JSON.stringify({ side: currentSide, pair: currentPair, type: 'limit', price, amount })
+    });
+    toast('Order placed', 'success');
+    document.getElementById('order-amount').value = '';
+    document.getElementById('order-total').textContent = '0.00 USDT';
+    await Promise.all([loadBalances(), loadMyOrders()]);
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+};
+
+window.cancelOrder = async (id) => {
+  if (!confirm('Cancel this order?')) return;
+  try {
+    await api(`/api/orders/${id}/cancel`, { method: 'POST' });
+    toast('Order cancelled', 'success');
+    await Promise.all([loadBalances(), loadMyOrders()]);
+  } catch (e) { toast(e.message, 'error'); }
+};
