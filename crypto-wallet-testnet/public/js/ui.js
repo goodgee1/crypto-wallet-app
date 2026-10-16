@@ -142,3 +142,98 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.prepend(bg);
   }
 });
+
+/* ============================================================
+   MOBILE NAV DRAWER
+   ============================================================ */
+function buildMobileDrawer() {
+  if (document.getElementById('nav-drawer')) return;
+
+  const user = JSON.parse(localStorage.getItem('user') || 'null');
+  const initial = user ? (user.username || '?')[0].toUpperCase() : '?';
+
+  const links = [
+    { href: '/dashboard.html', icon: '📊', label: 'Dashboard', key: 'dashboard' },
+    { href: '/portfolio.html', icon: '📈', label: 'Portfolio', key: 'portfolio' },
+    { href: '/staking.html',   icon: '🌱', label: 'Stake',     key: 'staking' },
+    { href: '/swap.html',      icon: '🔄', label: 'Swap',      key: 'swap' },
+    { href: '/wallet.html',    icon: '👛', label: 'Wallet',    key: 'wallet' },
+    { href: '/networks.html',  icon: '🌐', label: 'Networks',  key: 'networks' },
+    { href: '/referrals.html', icon: '🎁', label: 'Refer',     key: 'referrals' },
+    { href: '/profile.html',   icon: '👤', label: 'Profile',   key: 'profile' }
+  ];
+  if (user?.role === 'admin') {
+    links.push({ href: '/admin.html', icon: '🛡️', label: 'Admin', key: 'admin' });
+  }
+
+  // Detect active page by path
+  const path = window.location.pathname.replace('/', '').replace('.html', '') || 'dashboard';
+
+  const drawer = document.createElement('div');
+  drawer.className = 'nav-drawer';
+  drawer.id = 'nav-drawer';
+  drawer.innerHTML = `
+    <div class="nav-drawer-backdrop" onclick="closeMobileNav()"></div>
+    <aside class="nav-drawer-panel">
+      <div class="nav-drawer-head">
+        <div class="brand">
+          <div class="brand-logo">₮</div>
+          <span>Nova<span class="brand-accent">Wallet</span></span>
+        </div>
+        <button class="nav-burger" onclick="closeMobileNav()" aria-label="Close">✕</button>
+      </div>
+
+      <div class="nav-drawer-user">
+        <div class="avatar">${initial}</div>
+        <div style="min-width:0; flex:1;">
+          <div class="nav-drawer-name">${user?.username || 'Guest'}</div>
+          <div class="nav-drawer-email">${user?.email || ''}</div>
+        </div>
+      </div>
+
+      <nav class="nav-drawer-links">
+        ${links.map(l => `
+          <a href="${l.href}" class="nav-drawer-link ${path === l.key ? 'active' : ''}">
+            <span class="ico">${l.icon}</span>
+            <span>${l.label}</span>
+          </a>
+        `).join('')}
+      </nav>
+
+      <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border);">
+        <a href="#" class="nav-drawer-link danger" data-action="logout">
+          <span class="ico">🚪</span>
+          <span>Logout</span>
+        </a>
+      </div>
+    </aside>
+  `;
+  document.body.appendChild(drawer);
+}
+
+window.openMobileNav = function () {
+  buildMobileDrawer();
+  document.getElementById('nav-drawer')?.classList.add('open');
+  document.body.style.overflow = 'hidden';
+};
+
+window.closeMobileNav = function () {
+  document.getElementById('nav-drawer')?.classList.remove('open');
+  document.body.style.overflow = '';
+};
+
+// Attach burger to nav on page load
+document.addEventListener('DOMContentLoaded', () => {
+  const navLinks = document.querySelector('.nav-links');
+  if (!navLinks) return;
+
+  // Insert burger AFTER the theme toggle (or at the end)
+  if (!navLinks.querySelector('.nav-burger')) {
+    const burger = document.createElement('button');
+    burger.className = 'nav-burger';
+    burger.setAttribute('aria-label', 'Open menu');
+    burger.innerHTML = '☰';
+    burger.onclick = window.openMobileNav;
+    navLinks.appendChild(burger);
+  }
+});
