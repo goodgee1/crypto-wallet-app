@@ -184,3 +184,87 @@ window.cancelOrder = async (id) => {
     await Promise.all([loadBalances(), loadMyOrders()]);
   } catch (e) { toast(e.message, 'error'); }
 };
+
+/* ============================================================
+   LIVE PRICE CHART (SVG)
+   ============================================================ */
+let priceHistory = [];
+
+function pushPrice(p) {
+  priceHistory.push({ t: Date.now(), p });
+  if (priceHistory.length > 60) priceHistory.shift(); // last ~2 min at 2s cadence
+}
+
+function drawPriceChart() {
+  const svg = document.getElementById('price-chart');
+  if (!svg) return;
+  if (priceHistory.length < 2) {
+    svg.innerHTML = '<text x="400" y="110" text-anchor="middle" fill="#64748b" font-size="13">Collecting data…</text>';
+    return;
+  }
+
+  const W = 800, H = 220, P = 30;
+  const vals = priceHistory.map(x => x.p);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const range = max - min || 1;
+
+  const step = (W - P * 2) / (priceHistory.length - 1);
+  const points = priceHistory.map((d, i) => {
+    const x = P + i * step;
+    const y = H - P - ((d.p - min) / range) * (H - P * 2);
+    return [x, y];
+  });
+
+  const pathD = points.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  const areaD = `${pathD} L${points[points.length-1][0].toFixed(1)},${H-P} L${points[0][0].toFixed(1)},${H-P} Z`;
+
+  const last = vals[vals.length - 1];
+  const first = vals[0];
+  const up = last >= first;
+  const stroke = up ? '#4ade80' : '#ef4444';
+  const fillId = up ? 'chartGradUp' : 'chartGradDown';
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="chartGradUp" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%" stop-color="#4ade80" stop-opacity=".35"/>
+        <stop offset="100%" stop-color="#4ade80" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="chartGradDown" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%" stop-color="#ef4444" stop-opacity=".35"/>
+        <stop offset="100%" stop-color="#ef4444" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${areaD}" fill="url(#${fillId})"/>
+    <path d="${pathD}" fill="none" stroke="${stroke}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${points[points.length-1][0].toFixed(1)}" cy="${points[points.length-1][1].toFixed(1)}" r="5" fill="${stroke}"/>
+    <circle cx="${points[points.length-1][0].toFixed(1)}" cy="${points[points.length-1][1].toFixed(1)}" r="10" fill="${stroke}" opacity=".22"/>
+    <text x="${W-P}" y="20" text-anchor="end" fill="${stroke}" font-size="13" font-weight="700">$${last.toFixed(2)}</text>
+    <text x="${P}" y="20" fill="#64748b" font-size="11">high $${max.toFixed(2)}</text>
+    <text x="${P}" y="${H-8}" fill="#64748b" font-size="11">low $${min.toFixed(2)}</text>
+  `;
+}
+
+// Hook into the existing refreshBook to also push price
+const _origRefreshBook = refreshBook;
+refreshBook = async function () {
+  await _origRefreshBook();
+  const priceEl = document.getElementById('pair-price');
+  if (priceEl) {
+    const price = Number(priceEl.textContent.replace(/[^\d.]/g, ''));
+    if (price) {
+      pushPrice(price);
+      drawPriceChart();
+      document.getElementById('chart-pair-label').textContent = '· ' + currentPair;
+    }
+  }
+};
+
+// Reset history when pair changes
+const _origSelectPair = window.selectPair;
+window.selectPair = async function (pair) {
+  priceHistory = [];
+  await _origSelectPair(pair);
+  drawPriceChart();
+};
