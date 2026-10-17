@@ -6,6 +6,7 @@
 <title>Trade — NovaWallet</title>
 <script src="/js/theme.js"></script>
 <link rel="stylesheet" href="/css/style.css" />
+<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
   <div class="nav glass">
@@ -38,10 +39,11 @@
       </div>
     </div>
 
-        <div class="card">
-      <h3>Price Chart <span id="chart-pair-label" style="color: var(--text-mute); font-weight: 500;">· BTC/USDT</span></h3>
-      <svg id="price-chart" viewBox="0 0 800 220" style="width:100%; height: 240px; display:block;"></svg>
-    </div>
+       <!-- Replace the SVG chart card with this -->
+<div class="card">
+  <h3>Price Chart <span id="chart-pair-label" style="color: var(--text-mute); font-weight: 500;">· BTC/USDT</span></h3>
+  <div id="candle-chart" style="width: 100%; height: 380px;"></div>
+</div>
     
     <!-- Order book + Place order -->
     <div class="grid grid-2" style="align-items: start;">
@@ -111,6 +113,7 @@
   <script src="/js/auth.js"></script>
   <script src="/js/prices.js"></script>
   <script src="/js/notifications.js"></script>
+  <script src="/js/chart.js"></script>
   <script src="/js/orders.js"></script>
 </body>
 </html>
