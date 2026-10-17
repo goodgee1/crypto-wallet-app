@@ -1,4 +1,8 @@
-// ============ TOASTS ============
+/* ============================================================
+   NovaWallet — Shared UI (toasts, skeletons, nav, drawer)
+   ============================================================ */
+
+/* ============ TOASTS ============ */
 const TOAST_STYLES = {
   success: { bg: 'linear-gradient(135deg,#22c55e,#16a34a)', icon: '✓' },
   error:   { bg: 'linear-gradient(135deg,#ef4444,#b91c1c)', icon: '✕' },
@@ -33,21 +37,17 @@ function toast(message, type = 'info', duration = 3500) {
   }, duration);
 }
 
-// ============ SKELETON LOADERS ============
+/* ============ SKELETON LOADERS ============ */
 function skeletonRows(n = 5) {
-  return Array.from({ length: n }).map(() => `
-    <div class="skeleton skeleton-row"></div>
-  `).join('');
+  return Array.from({ length: n }).map(() => `<div class="skeleton skeleton-row"></div>`).join('');
 }
-
 function skeletonCards(n = 3) {
-  return Array.from({ length: n }).map(() => `
-    <div class="skeleton skeleton-card"></div>
-  `).join('');
+  return Array.from({ length: n }).map(() => `<div class="skeleton skeleton-card"></div>`).join('');
 }
 
-// ============ ANIMATED COUNTER ============
+/* ============ ANIMATED COUNTER ============ */
 function animateNumber(el, to, decimals = 2, duration = 800) {
+  if (!el) return;
   const from = Number(el.dataset.value || 0);
   el.dataset.value = to;
   const start = performance.now();
@@ -61,113 +61,153 @@ function animateNumber(el, to, decimals = 2, duration = 800) {
   requestAnimationFrame(step);
 }
 
-// ============ NAV / USER AVATAR ============
-function renderNav(active) {
-  const user = JSON.parse(localStorage.getItem('user') || 'null');
-  const initial = user ? user.username[0].toUpperCase() : '?';
-  const links = [
-    { href: '/dashboard.html', label: 'Dashboard', key: 'dashboard' },
-    { href: '/wallet.html',    label: 'Wallet',    key: 'wallet' }
-  ];
-  if (user?.role === 'admin') {
-    links.push({ href: '/admin.html', label: 'Admin', key: 'admin' });
-  }
+/* ============================================================
+   NAV CONFIG — single source of truth
+   ============================================================ */
+const PRIMARY_LINKS = [
+  { href: '/dashboard.html', icon: '📊', label: 'Dashboard', key: 'dashboard' },
+  { href: '/portfolio.html', icon: '📈', label: 'Portfolio', key: 'portfolio' },
+  { href: '/orders.html',    icon: '💹', label: 'Trade',     key: 'orders' },
+  { href: '/staking.html',   icon: '🌱', label: 'Stake',     key: 'staking' },
+  { href: '/swap.html',      icon: '🔄', label: 'Swap',      key: 'swap' },
+  { href: '/wallet.html',    icon: '👛', label: 'Wallet',    key: 'wallet' }
+];
 
-  const nav = document.createElement('nav');
-  nav.className = 'nav glass';
-  nav.innerHTML = `
-    <div class="nav-left">
-      <div class="brand">
-        <div class="brand-logo">₮</div>
-        <span>Test<span class="brand-accent">Wallet</span></span>
-      </div>
-    </div>
-    <div class="nav-links">
-      ${links.map(l => `
-        <a href="${l.href}" class="nav-link ${active === l.key ? 'active' : ''}">${l.label}</a>
-      `).join('')}
-      <div class="user-chip" data-action="toggle-menu">
-        <div class="avatar">${initial}</div>
-        <span class="user-name">${user?.username || 'Guest'}</span>
-      </div>
-      <div class="dropdown glass" id="user-menu">
-        <div class="dropdown-header">
-          <div class="avatar avatar-lg">${initial}</div>
-          <div>
-            <div class="dropdown-name">${user?.username || ''}</div>
-            <div class="dropdown-email">${user?.email || ''}</div>
-          </div>
-        </div>
-        <a href="/dashboard.html" class="dropdown-item">Dashboard</a>
-        <a href="/wallet.html" class="dropdown-item">Wallet</a>
-        <a href="#" class="dropdown-item" data-action="logout">Logout</a>
-      </div>
-    </div>
-  `;
+const SECONDARY_LINKS = [
+  { href: '/networks.html',  icon: '🌐', label: 'Networks',     key: 'networks' },
+  { href: '/referrals.html', icon: '🎁', label: 'Refer & Earn', key: 'referrals' },
+  { href: '/profile.html',   icon: '👤', label: 'Profile',      key: 'profile' }
+];
 
-  const header = document.querySelector('body > .nav');
-  if (header) header.replaceWith(nav);
-  else document.body.prepend(nav);
-
-  // toggle dropdown
-  nav.querySelector('[data-action="toggle-menu"]').addEventListener('click', (e) => {
-    e.stopPropagation();
-    document.getElementById('user-menu').classList.toggle('open');
-  });
-  document.addEventListener('click', () => {
-    document.getElementById('user-menu')?.classList.remove('open');
-  });
+/* ============================================================
+   MODAL HELPERS (available everywhere)
+   ============================================================ */
+function openModal(id) {
+  const m = document.getElementById(id);
+  if (m) m.classList.add('open');
 }
-
-// ============ GLOBAL LOGOUT HANDLER ============
+function closeModal(id) {
+  const m = document.getElementById(id);
+  if (m) m.classList.remove('open');
+}
 document.addEventListener('click', (e) => {
-  const el = e.target.closest('[data-action="logout"]');
-  if (el) {
-    e.preventDefault();
-    if (typeof logout === 'function') logout();
-    else {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.replace('/login.html');
-    }
+  if (e.target.classList.contains('modal') && e.target.classList.contains('open')) {
+    e.target.classList.remove('open');
   }
 });
-
-// Animated background blobs
-document.addEventListener('DOMContentLoaded', () => {
-  if (!document.querySelector('.bg-blobs')) {
-    const bg = document.createElement('div');
-    bg.className = 'bg-blobs';
-    bg.innerHTML = '<span></span><span></span><span></span>';
-    document.body.prepend(bg);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
+    closeMobileNav();
   }
 });
 
 /* ============================================================
-   MOBILE NAV DRAWER
+   DESKTOP NAV RENDERING
+   Replaces whatever is hardcoded in .nav-links on each page
    ============================================================ */
-function buildMobileDrawer() {
-  if (document.getElementById('nav-drawer')) return;
+function currentPathKey() {
+  const p = window.location.pathname.replace('/', '').replace('.html', '') || 'dashboard';
+  return p;
+}
+
+function renderTopNav() {
+  const navLinks = document.querySelector('.nav-links');
+  if (!navLinks) return;
 
   const user = JSON.parse(localStorage.getItem('user') || 'null');
   const initial = user ? (user.username || '?')[0].toUpperCase() : '?';
+  const activeKey = currentPathKey();
 
-  const links = [
-    { href: '/dashboard.html', icon: '📊', label: 'Dashboard', key: 'dashboard' },
-    { href: '/portfolio.html', icon: '📈', label: 'Portfolio', key: 'portfolio' },
-    { href: '/staking.html',   icon: '🌱', label: 'Stake',     key: 'staking' },
-    { href: '/swap.html',      icon: '🔄', label: 'Swap',      key: 'swap' },
-    { href: '/wallet.html',    icon: '👛', label: 'Wallet',    key: 'wallet' },
-    { href: '/networks.html',  icon: '🌐', label: 'Networks',  key: 'networks' },
-    { href: '/referrals.html', icon: '🎁', label: 'Refer',     key: 'referrals' },
-    { href: '/profile.html',   icon: '👤', label: 'Profile',   key: 'profile' }
-  ];
+  // Build primary links
+  const primaryHTML = PRIMARY_LINKS.map(l => `
+    <a href="${l.href}" class="nav-link ${activeKey === l.key ? 'active' : ''}">${l.label}</a>
+  `).join('');
+
+  // Build secondary links for the user dropdown
+  const secondaryHTML = SECONDARY_LINKS.map(l => `
+    <a href="${l.href}" class="dropdown-item ${activeKey === l.key ? 'active' : ''}">
+      <span class="dropdown-item-icon">${l.icon}</span>
+      <span>${l.label}</span>
+    </a>
+  `).join('');
+
+  const isAdmin = user?.role === 'admin';
+
+  navLinks.innerHTML = `
+    ${primaryHTML}
+
+    <div class="theme-toggle" data-action="toggle-theme" title="Toggle theme">🌓</div>
+
+    <div class="notif-wrap">
+      <div class="notif-bell" data-notif-toggle>
+        🔔
+        <span class="notif-badge" style="display:none;"></span>
+      </div>
+      <div class="notif-panel glass"></div>
+    </div>
+
+    <div class="user-wrap">
+      <div class="user-chip" data-user-toggle>
+        <div class="avatar">${initial}</div>
+      </div>
+      <div class="user-dropdown glass" id="user-dropdown">
+        <div class="dropdown-header">
+          <div class="avatar avatar-lg">${initial}</div>
+          <div style="min-width:0;">
+            <div class="dropdown-name">${user?.username || ''}</div>
+            <div class="dropdown-email">${user?.email || ''}</div>
+          </div>
+        </div>
+        ${secondaryHTML}
+        ${isAdmin ? `
+          <a href="/admin.html" class="dropdown-item">
+            <span class="dropdown-item-icon">🛡️</span>
+            <span>Admin Panel</span>
+          </a>
+        ` : ''}
+        <div class="dropdown-divider"></div>
+        <a href="#" class="dropdown-item danger" data-action="logout">
+          <span class="dropdown-item-icon">🚪</span>
+          <span>Logout</span>
+        </a>
+      </div>
+    </div>
+
+    <button class="nav-burger" aria-label="Open menu" data-burger>☰</button>
+  `;
+
+  // Toggle user dropdown
+  navLinks.querySelector('[data-user-toggle]').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('user-dropdown')?.classList.toggle('open');
+  });
+  document.addEventListener('click', () => {
+    document.getElementById('user-dropdown')?.classList.remove('open');
+  });
+
+  // Burger
+  navLinks.querySelector('[data-burger]').addEventListener('click', (e) => {
+    e.stopPropagation();
+    openMobileNav();
+  });
+}
+
+/* ============================================================
+   MOBILE NAV DRAWER — includes EVERYTHING
+   ============================================================ */
+function buildMobileDrawer() {
+  const existing = document.getElementById('nav-drawer');
+  if (existing) existing.remove();
+
+  const user = JSON.parse(localStorage.getItem('user') || 'null');
+  const initial = user ? (user.username || '?')[0].toUpperCase() : '?';
+  const activeKey = currentPathKey();
+
+  const allLinks = [...PRIMARY_LINKS, ...SECONDARY_LINKS];
   if (user?.role === 'admin') {
-    links.push({ href: '/admin.html', icon: '🛡️', label: 'Admin', key: 'admin' });
+    allLinks.push({ href: '/admin.html', icon: '🛡️', label: 'Admin Panel', key: 'admin' });
   }
-
-  // Detect active page by path
-  const path = window.location.pathname.replace('/', '').replace('.html', '') || 'dashboard';
 
   const drawer = document.createElement('div');
   drawer.className = 'nav-drawer';
@@ -192,15 +232,19 @@ function buildMobileDrawer() {
       </div>
 
       <nav class="nav-drawer-links">
-        ${links.map(l => `
-          <a href="${l.href}" class="nav-drawer-link ${path === l.key ? 'active' : ''}">
+        ${allLinks.map(l => `
+          <a href="${l.href}" class="nav-drawer-link ${activeKey === l.key ? 'active' : ''}">
             <span class="ico">${l.icon}</span>
             <span>${l.label}</span>
           </a>
         `).join('')}
       </nav>
 
-      <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border);">
+      <div class="nav-drawer-section">
+        <button class="nav-drawer-link" data-action="toggle-theme" style="width:100%;">
+          <span class="ico">🌓</span>
+          <span>Toggle theme</span>
+        </button>
         <a href="#" class="nav-drawer-link danger" data-action="logout">
           <span class="ico">🚪</span>
           <span>Logout</span>
@@ -213,27 +257,50 @@ function buildMobileDrawer() {
 
 window.openMobileNav = function () {
   buildMobileDrawer();
-  document.getElementById('nav-drawer')?.classList.add('open');
-  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => {
+    document.getElementById('nav-drawer')?.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  });
 };
 
 window.closeMobileNav = function () {
-  document.getElementById('nav-drawer')?.classList.remove('open');
+  const drawer = document.getElementById('nav-drawer');
+  if (!drawer) return;
+  drawer.classList.remove('open');
   document.body.style.overflow = '';
+  setTimeout(() => drawer.remove(), 300);
 };
 
-// Attach burger to nav on page load
-document.addEventListener('DOMContentLoaded', () => {
-  const navLinks = document.querySelector('.nav-links');
-  if (!navLinks) return;
+/* ============================================================
+   GLOBAL LOGOUT
+   ============================================================ */
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-action="logout"]');
+  if (el) {
+    e.preventDefault();
+    if (typeof logout === 'function') logout();
+    else {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.replace('/login.html');
+    }
+  }
+});
 
-  // Insert burger AFTER the theme toggle (or at the end)
-  if (!navLinks.querySelector('.nav-burger')) {
-    const burger = document.createElement('button');
-    burger.className = 'nav-burger';
-    burger.setAttribute('aria-label', 'Open menu');
-    burger.innerHTML = '☰';
-    burger.onclick = window.openMobileNav;
-    navLinks.appendChild(burger);
+/* ============================================================
+   BACKGROUND BLOBS + INIT
+   ============================================================ */
+function injectBackground() {
+  if (document.querySelector('.bg-blobs')) return;
+  const bg = document.createElement('div');
+  bg.className = 'bg-blobs';
+  bg.innerHTML = '<span></span><span></span><span></span>';
+  document.body.prepend(bg);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  injectBackground();
+  if (localStorage.getItem('token')) {
+    renderTopNav();
   }
 });
